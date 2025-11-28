@@ -1,0 +1,31 @@
+const { clienteModel } = require('../models/clienteModel');
+
+const clienteController = {
+    incluiRegistroCliente: async (req, res) => {
+        try {
+            const { id_cliente, nome, email, cpf, telefone, cep, numero, complemento } = req.body;
+
+            const resultado = await clienteModel.insertCliente(nome, email, cpf);
+            await clienteModel.insertTelefone(id_cliente, telefone);
+            const resposta = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+            const dados = resposta.json()
+            const { estado, cidade, logradouro, bairro } = await resposta.json
+            await clienteModel.insertEndereco(
+                id_cliente,
+                cep,
+                estado.dados["uf"],
+                cidade.dados["localidade"],
+                logradouro.dados["logradouro"],
+                bairro.dados["bairro"],
+                numero,
+                complemento)
+            console.log(dados);
+            return res.status(201).json({ message: 'Registro incluído com sucesso', data: dados });
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ message: 'Ocorreu um erro no servidor', errorMessage: error.message });
+        }
+    }
+}
+
+module.exports = { clienteController }
