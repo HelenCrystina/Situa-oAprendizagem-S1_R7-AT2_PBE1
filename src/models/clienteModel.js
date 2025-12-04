@@ -2,30 +2,39 @@ const { pool } = require('../config/db');
 
 const clienteModel = {
 
-    selectAll: async () => {
-        const sql = 'SELECT * FROM clientes;';
-        const [rows] = await pool.query(sql);
-        return rows;
-    },
     insertCliente: async (pNome, pEmail, pCpf) => {
         const sql = 'INSERT INTO clientes (nome_cliente, email, cpf ) VALUES (?, ?, ?);';
         const values = [pNome, pEmail, pCpf];
         const [rows] = await pool.query(sql, values);
+        return rows.insertId;
+    },
+
+    selectByCpf: async (pCpf) => {
+        const [rows] = await pool.query('SELECT * FROM clientes WHERE cpf=?;', [pCpf]);
         return rows;
     },
-    insertEndereco: async (pIdCliente, pCep, pEstado, pCidade, pLogradouro, pBairro, pNumero, pComplemento) => {
-        const sql = 'INSERT INTO enderecos (id_cliente, cep, estado, cidade, logradouro, bairro, numero, complemento ) VALUES (?, ?, ?, ?, ?, ?, ?);';
-        const values = [pIdCliente, pCep, pEstado, pCidade, pLogradouro, pBairro, pNumero, pComplemento];
-        const [rows] = await pool.query(sql, values);
+
+    selectByEmail: async (pEmail) => {
+        const [rows] = await pool.query('SELECT * FROM clientes WHERE email=?;', [pEmail]);
         return rows;
     },
-    insertTelefone: async (pIdCliente, pTelefone) => {
-        const sql = 'INSERT INTO telefones (id_cliente, telefone) VALUES (?, ?);';
-        const values = [pIdCliente, pTelefone];
+
+    insertTelefone: async (pTelefone, pIdCliente) => {
+        const sql = 'INSERT INTO telefones (telefone_cliente, id_cliente) VALUES (?, ?);';
+        const [rows] = await pool.query(sql, [pTelefone, pIdCliente]);
+        return rows;
+    },
+
+    insertEndereco: async (pCep, pEstado, pLocalidade, pLogradouro, pBairro, pNumero, pComplemento, pIdCliente) => {
+        const sql = `
+            INSERT INTO enderecos 
+            (cep, estado, localidade, logradouro, bairro, numero, complemento, id_cliente)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+        `;
+        const values = [pCep, pEstado, pLocalidade, pLogradouro, pBairro, pNumero, pComplemento, pIdCliente];
         const [rows] = await pool.query(sql, values);
         return rows;
     }
-
 }
 
-module.exports = { clienteModel }
+module.exports = { clienteModel };

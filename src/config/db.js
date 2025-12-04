@@ -4,7 +4,7 @@ const pool = mysql.createPool({
     host: 'localhost',
     user: 'root',
     password: '1234',
-    database: 'entregas_db',
+    database: 'rapido&seguro',
     port: '3306',
     waitForConnections: true,
     connectionLimit: 10,
