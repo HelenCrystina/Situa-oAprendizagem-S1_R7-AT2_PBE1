@@ -11,8 +11,13 @@ const clienteController = {
             }
             const emailAtual = await clienteModel.selectByEmail(email);
             if (emailAtual.length === 1) {
-                return res.status(409).json({ message: 'O Email já existe!' });
+                return res.status(409).json({ message: 'O email já existe!' });
             }
+
+            if (cep.length !== 8) {
+                alert("O CEP deve conter 8 dígitos.");
+                return;
+              }
 
             const cpfAtual = await clienteModel.selectByCpf(cpf);
             if (cpfAtual.length === 1) {
@@ -37,6 +42,9 @@ const clienteController = {
                 complemento,
                 id_cliente
             );
+            if (id_cliente.insertId === 0) {
+                throw new Error("Ocorreu um erro ao incluir o produto");
+            }
 
             res.status(201).json({ message: 'Registro incluído com sucesso!' });
 
