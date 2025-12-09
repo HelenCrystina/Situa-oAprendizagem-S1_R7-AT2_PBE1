@@ -1,28 +1,49 @@
 const { clienteModel } = require('../models/clienteModel');
 
 const clienteController = {
+    selecionaTodos: async (req, res) => {
+        try {
+            const resultado = await clienteModel.selectClientes();
+            if (resultado.length === 0) {
+                return res.status(200).json({ message: 'A consulta não retornou resultados' });
+            }
+            return res.status(200).json({ data: resultado });
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ message: 'Ocorreu um erro no servidor', errorMessage: error.message });
+        }
+    },
     incluiRegistroCliente: async (req, res) => {
         try {
             const { nome, cpf, email, telefone_cliente, numero, complemento, cep } = req.body;
-            
-            if (!nome || !cpf || !email || !telefone_cliente || !numero || !complemento || !cep) {
+
+            if (!nome || !cpf || !email || !telefone_cliente || !numero || !cep
+                || isNaN(nome) || isNaN(cpf || isNaN(email || isNaN(telefone_cliente || isNaN(numero) || isNaN(complemento || isNaN(cep)))))) {
                 return res.status(400).json({ message: 'Verifique os dados enviados e tente novamente' });
-        
+            }
+            const cpfAtual = await clienteModel.selectByCpf(cpf);
+            if (cpfAtual.length === 1) {
+                return res.status(409).json({ message: 'O CPF já existe!' });
             }
             const emailAtual = await clienteModel.selectByEmail(email);
             if (emailAtual.length === 1) {
                 return res.status(409).json({ message: 'O email já existe!' });
             }
+            const telefoneAtual = await clienteModel.selectByTelefone(telefone_cliente);
+            if (telefoneAtual.length === 1) {
+                return res.status(409).json({ message: 'O telefone já existe!' });
+            }
 
             if (cep.length !== 8) {
                 alert("O CEP deve conter 8 dígitos.");
                 return;
-              }
-
-            const cpfAtual = await clienteModel.selectByCpf(cpf);
-            if (cpfAtual.length === 1) {
-                return res.status(409).json({ message: 'O CPF já existe!' });
             }
+
+            if (cpf.length !== 11) {
+                alert("O CPF deve conter 11 dígitos.");
+                return;
+            }
+
             const id_cliente = await clienteModel.insertCliente(nome, email, cpf);
 
             const resposta = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
@@ -43,7 +64,7 @@ const clienteController = {
                 id_cliente
             );
             if (id_cliente.insertId === 0) {
-                throw new Error("Ocorreu um erro ao incluir o produto");
+                throw new Error("Ocorreu um erro ao incluir o cliente");
             }
 
             res.status(201).json({ message: 'Registro incluído com sucesso!' });
@@ -52,7 +73,121 @@ const clienteController = {
             console.error(error);
             res.status(500).json({ message: 'Ocorreu um erro no servidor', errorMessage: error.message });
         }
+    },
+    alterarCliente: async (req, res) => {
+        try {
+            const id_cliente = Number(req.params.id_cliente);
+            const { nome, cpf, email, telefone_cliente, numero, complemento, cep } = req.body;
+
+            if (
+                !id_cliente ||
+                (!cpf && !email && !telefone_cliente && !numero && !complemento && !cep && !nome) ||
+                typeof id_cliente !== 'number' || Number.isNaN(id_cliente)
+            ) {
+                return res.status(400).json({ message: 'Verifique os dados enviados e tente novamente' });
+            }
+
+            // Verificação de CPF duplicado (somente se CPF for enviado)
+            if (cpf) {
+                const cpfAtual = await clienteModel.selectByCpf(cpf);
+                if (cpfAtual.length === 1) {
+                    return res.status(409).json({ message: 'O CPF já existe!' });
+                }
+            }
+
+            // Verificação de email duplicado (somente se email for enviado)
+            if (email) {
+                const emailAtual = await clienteModel.selectByEmail(email);
+                if (emailAtual.length === 1) {
+                    return res.status(409).json({ message: 'O email já existe!' });
+                }
+            }
+
+            // Verificação de telefone duplicado (somente se telefone for enviado)
+            if (telefone_cliente) {
+                const telefoneAtual = await clienteModel.selectByTelefone(telefone_cliente);
+                if (telefoneAtual.length === 1) {
+                    return res.status(409).json({ message: 'O telefone já existe!' });
+                }
+            }
+
+            // Seleção dos dados atuais
+            const clienteAtual = await clienteModel.selectByIdClientes(id_cliente);
+            const clienteAtualTelefones = await clienteModel.selectByIdTelefones(id_cliente);
+            const clienteAtualEnderecos = await clienteModel.selectByIdEnderecos(id_cliente);
+
+            if (clienteAtual.length === 0 || clienteAtualTelefones.length === 0 || clienteAtualEnderecos.length === 0) {
+                return res.status(200).json({ message: 'Cliente não localizado' });
+            }
+
+            // Atribuição correta dos novos valores
+            const novoNome = nome ?? clienteAtual[0].nome_cliente;
+            const novoCpf = cpf ?? clienteAtual[0].cpf;
+            const novoEmail = email ?? clienteAtual[0].email;
+            const novoTelefone = telefone_cliente ?? clienteAtualTelefones[0].telefone_cliente;
+            const novoNumero = numero ?? clienteAtualEnderecos[0].numero;
+            const novoComplemento = complemento ?? clienteAtualEnderecos[0].complemento;
+            const novoCep = cep ?? clienteAtualEnderecos[0].cep;
+
+            // Atualizações
+            const resultUpdateClientes = await clienteModel.updateClientes(novoNome, novoCpf, novoEmail, id_cliente);
+            const resultUpdateTelefones = await clienteModel.updateTelefones(id_cliente, novoTelefone);
+            const resultUpdateEnderecos = await clienteModel.updateEnderecos(id_cliente, novoNumero, novoComplemento, novoCep);
+
+            // Caso não haja mudanças
+            if (
+                (resultUpdateClientes.affectedRows === 1 && resultUpdateClientes.changedRows === 0) &&
+                (resultUpdateTelefones.affectedRows === 1 && resultUpdateTelefones.changedRows === 0) &&
+                (resultUpdateEnderecos.affectedRows === 1 && resultUpdateEnderecos.changedRows === 0)
+            ) {
+                return res.status(200).json({ message: 'Não há alterações a serem realizadas' });
+            }
+
+            // Sucesso
+            return res.status(200).json({ message: 'Registro alterado com sucesso', data:resultUpdateClientes});
+
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ message: 'Ocorreu um erro no servidor', errorMessage: error.message });
+        }
+    },
+
+    deletaCliente: async (req, res) => {
+        try {
+            const id_cliente = Number(req.params.id_cliente);
+
+            // Validação do ID
+            if (!id_cliente || !Number.isInteger(id_cliente)) {
+                return res.status(400).json({ message: 'Forneça um identificador válido' });
+            }
+
+            // Verifica se o cliente existe
+            const clienteSelecionado = await clienteModel.selectByIdClientes(id_cliente);
+            if (clienteSelecionado.length === 0) {
+                return res.status(200).json({ message: 'Cliente não localizado na base de dados' });
+            }
+
+            // Apaga registros dependentes manualmente
+            await clienteModel.deleteTelefones(id_cliente);
+            await clienteModel.deleteEnderecos(id_cliente);
+            await clienteModel.deletePedidos(id_cliente);
+
+            // Agora apaga o cliente
+            const resultadoDelete = await clienteModel.deleteCliente(id_cliente);
+
+            if (resultadoDelete.affectedRows === 0) {
+                return res.status(200).json({ message: 'Ocorreu um erro ao excluir o cliente' });
+            }
+
+            return res.status(200).json({ message: 'Cliente excluído com sucesso' });
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ message: "Ocorreu um erro no servidor", errorMessage: error.message });
+        }
     }
+
+
+
 }
 
 module.exports = { clienteController }
