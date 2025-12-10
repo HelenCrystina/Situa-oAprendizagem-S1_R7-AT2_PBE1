@@ -1,9 +1,18 @@
 const { clienteModel } = require('../models/clienteModel');
 
 const clienteController = {
+    /**
+  *Retorna os clientes cadastrados
+  * @async
+  * @function selecionaTodos: exibe todos os clientes cadastrados
+  * @param {Request} req Objeto da requisição HTTP
+  * @param {Response} res Objeto da resposta HTTP
+  * @returns
+  */
     selecionaTodos: async (req, res) => {
         try {
             const resultado = await clienteModel.selectClientes();
+            // Verifica se a consulta possui clientes cadastrados, se não tiver ele retorna que não foi encontrado
             if (resultado.length === 0) {
                 return res.status(200).json({ message: 'A consulta não retornou resultados' });
             }
@@ -13,13 +22,30 @@ const clienteController = {
             res.status(500).json({ message: 'Ocorreu um erro no servidor', errorMessage: error.message });
         }
     },
+
+    /**
+ * Insere o registro dos clientes
+ * @async
+ * @function incluiRegistroCliente: cria o registro do cliente
+ * @param {Request} req Objeto da requisição HTTP
+ * @param {Response} res Objeto da resposta HTTP
+ * @returns
+ */
     incluiRegistroCliente: async (req, res) => {
         try {
             const { nome, cpf, email, telefone_cliente, numero, complemento, cep } = req.body;
 
-            if (!nome || !cpf || !email || !telefone_cliente || !numero || !cep
-                || isNaN(nome) || isNaN(cpf || isNaN(email || isNaN(telefone_cliente || isNaN(numero) || isNaN(complemento || isNaN(cep)))))) {
+            // Verifica se os campos abaixo possui valor
+            if (!nome || !cpf || !email || !telefone_cliente || !cep || isNaN(cpf) || isNaN(telefone_cliente) || isNaN(numero) || isNaN(cep)) {
                 return res.status(400).json({ message: 'Verifique os dados enviados e tente novamente' });
+            }
+
+            if (cep.length !== 8) {
+                return res.status(400)({ message: "O CEP deve conter 8 dígitos." });
+            }
+
+            if (cpf.length !== 11) {
+                return res.status(400)({ message: "O CPF deve conter 11 dígitos." });
             }
             const cpfAtual = await clienteModel.selectByCpf(cpf);
             if (cpfAtual.length === 1) {
@@ -34,25 +60,20 @@ const clienteController = {
                 return res.status(409).json({ message: 'O telefone já existe!' });
             }
 
-            if (cep.length !== 8) {
-                alert("O CEP deve conter 8 dígitos.");
-                return;
-            }
+            const respostaCliente = await clienteModel.insertCliente(nome, email, cpf);
+            const id_cliente = respostaCliente.insertId
 
-            if (cpf.length !== 11) {
-                alert("O CPF deve conter 11 dígitos.");
-                return;
-            }
-
-            const id_cliente = await clienteModel.insertCliente(nome, email, cpf);
-
+            // Busca o endereço pela API via CEP, de acordo com os parametros .
             const resposta = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
             const dados = await resposta.json();
 
             const { logradouro, bairro, localidade, uf } = dados;
 
+            // Insere os dados na tabela telefones
             await clienteModel.insertTelefone(telefone_cliente, id_cliente);
 
+
+            // Insere os dados na tabela endereços
             await clienteModel.insertEndereco(
                 cep,
                 uf,
@@ -63,6 +84,7 @@ const clienteController = {
                 complemento,
                 id_cliente
             );
+            // Verifica se ocorreu um erro na hora de inserir os dados dos clientes
             if (id_cliente.insertId === 0) {
                 throw new Error("Ocorreu um erro ao incluir o cliente");
             }
@@ -74,6 +96,15 @@ const clienteController = {
             res.status(500).json({ message: 'Ocorreu um erro no servidor', errorMessage: error.message });
         }
     },
+
+    /**
+     * Altera os dados dos clientes
+     * @async
+     * @function alterarCliente: altera os dados dos clientes
+     * @param {Request} req Objeto da requisição HTTP
+     * @param {Response} res Objeto da resposta HTTP
+     * @returns 
+     */
     alterarCliente: async (req, res) => {
         try {
             const id_cliente = Number(req.params.id_cliente);
@@ -86,8 +117,7 @@ const clienteController = {
             ) {
                 return res.status(400).json({ message: 'Verifique os dados enviados e tente novamente' });
             }
-
-            // Verificação de CPF duplicado (somente se CPF for enviado)
+            // Verifica se o cpf já existe no banco e assim nos notificará 
             if (cpf) {
                 const cpfAtual = await clienteModel.selectByCpf(cpf);
                 if (cpfAtual.length === 1) {
@@ -95,7 +125,7 @@ const clienteController = {
                 }
             }
 
-            // Verificação de email duplicado (somente se email for enviado)
+            // Verifica se o email já existe no banco e assim nos notificará 
             if (email) {
                 const emailAtual = await clienteModel.selectByEmail(email);
                 if (emailAtual.length === 1) {
@@ -103,7 +133,7 @@ const clienteController = {
                 }
             }
 
-            // Verificação de telefone duplicado (somente se telefone for enviado)
+            // Verifica se o telefone já existe no banco e assim nos notificará 
             if (telefone_cliente) {
                 const telefoneAtual = await clienteModel.selectByTelefone(telefone_cliente);
                 if (telefoneAtual.length === 1) {
@@ -121,6 +151,8 @@ const clienteController = {
             }
 
             // Atribuição correta dos novos valores
+            // Verifica se o valor que vai ser alterado é o mesmo que foi atribuido na tabela, caso seja ele não modifica o valor.
+            // Se ele não for o mesmo ele só vai alterar o valor escolhido e restante dos valores irão permanecer os mesmos
             const novoNome = nome ?? clienteAtual[0].nome_cliente;
             const novoCpf = cpf ?? clienteAtual[0].cpf;
             const novoEmail = email ?? clienteAtual[0].email;
@@ -143,8 +175,8 @@ const clienteController = {
                 return res.status(200).json({ message: 'Não há alterações a serem realizadas' });
             }
 
-            // Sucesso
-            return res.status(200).json({ message: 'Registro alterado com sucesso', data:resultUpdateClientes});
+            // caso os dados forem corretamente inseridos, irá realizar as modificações que foram solicitadas
+            return res.status(200).json({ message: 'Registro alterado com sucesso', data: resultUpdateClientes });
 
         } catch (error) {
             console.error(error);
@@ -152,29 +184,35 @@ const clienteController = {
         }
     },
 
+    /**
+  * Exclui os dados dos clientes
+  * @async
+  * @function deletaCliente: deleta os dados dos clientes, da tabela: clientes, enderecos, telefones, pedidos e calculo_entregas
+  * @param {Request} req Objeto da requisição HTTP
+  * @param {Response} res Objeto da resposta HTTP
+  * @returns 
+  */
     deletaCliente: async (req, res) => {
         try {
             const id_cliente = Number(req.params.id_cliente);
 
-            // Validação do ID
             if (!id_cliente || !Number.isInteger(id_cliente)) {
                 return res.status(400).json({ message: 'Forneça um identificador válido' });
             }
 
-            // Verifica se o cliente existe
             const clienteSelecionado = await clienteModel.selectByIdClientes(id_cliente);
             if (clienteSelecionado.length === 0) {
                 return res.status(200).json({ message: 'Cliente não localizado na base de dados' });
             }
-
-            // Apaga registros dependentes manualmente
+            // Faz primeiro a exclusão do calculo, depois do pedido e após isso é feito as exclusões do telefone, endereço e do cliente
+            await clienteModel.deleteCalculo(id_cliente)
+            await clienteModel.deletePedidos(id_cliente);
             await clienteModel.deleteTelefones(id_cliente);
             await clienteModel.deleteEnderecos(id_cliente);
-            await clienteModel.deletePedidos(id_cliente);
 
-            // Agora apaga o cliente
             const resultadoDelete = await clienteModel.deleteCliente(id_cliente);
-
+            // Verifica se teve linhas afetadas, caso não teve nenhum linha foi afetada e irá retornar um erro. 
+            // Se as linhas forem afetadas, o cliente foi excluído 
             if (resultadoDelete.affectedRows === 0) {
                 return res.status(200).json({ message: 'Ocorreu um erro ao excluir o cliente' });
             }
@@ -185,8 +223,6 @@ const clienteController = {
             res.status(500).json({ message: "Ocorreu um erro no servidor", errorMessage: error.message });
         }
     }
-
-
 
 }
 
