@@ -169,22 +169,34 @@ const clienteModel = {
    * @param {*} pIdCliente: o id do cliente que está relacionado ao endereço
    * @returns 
    */
-    insertEndereco: async (pCep, pEstado, pLocalidade, pLogradouro, pBairro, pNumero, pComplemento, pIdCliente) => {
-        const connection = await pool.getConnection();
-        try {
-            await connection.beginTransaction();
-            const sql = `
+   insertEndereco: async (
+    pCep,
+    pEstado,
+    pLocalidade,
+    pLogradouro,
+    pBairro,
+    pNumero,
+    pComplemento,
+    pIdCliente
+  ) => {
+    const sql = `
             INSERT INTO enderecos 
-            (cep, estado, localidade, logradouro, bairro, numero, complemento, id_cliente)`;
-            const values = [pCep, pEstado, pLocalidade, pLogradouro, pBairro, pNumero, pComplemento, pIdCliente];
-            const [rows] = await pool.query(sql, values);
-            connection.commit();
-            return rows;
-        } catch (error) {
-            connection.rollback();
-            throw error;
-        }
-    },
+            (cep, estado, localidade, logradouro, bairro, numero, complemento, id_cliente)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+        `;
+    const values = [
+      pCep,
+      pEstado,
+      pLocalidade,
+      pLogradouro,
+      pBairro,
+      pNumero,
+      pComplemento,
+      pIdCliente,
+    ];
+    const [rows] = await pool.query(sql, values);
+    return rows;
+  },
 
      /**
    * Atualiza as informações dos clientes 

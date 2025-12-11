@@ -31,72 +31,132 @@ const clienteController = {
  * @param {Response} res Objeto da resposta HTTP
  * @returns
  */
-    incluiRegistroCliente: async (req, res) => {
+    selecionaTodos: async (req, res) => {
         try {
-            const { nome, cpf, email, telefone_cliente, numero, complemento, cep } = req.body;
-
-            // Verifica se os campos abaixo possui valor
-            if (!nome || !cpf || !email || !telefone_cliente || !cep || isNaN(cpf) || isNaN(telefone_cliente) || isNaN(numero) || isNaN(cep)) {
-                return res.status(400).json({ message: 'Verifique os dados enviados e tente novamente' });
-            }
-
-            if (cep.length !== 8) {
-                return res.status(400)({ message: "O CEP deve conter 8 dígitos." });
-            }
-
-            if (cpf.length !== 11) {
-                return res.status(400)({ message: "O CPF deve conter 11 dígitos." });
-            }
-            const cpfAtual = await clienteModel.selectByCpf(cpf);
-            if (cpfAtual.length === 1) {
-                return res.status(409).json({ message: 'O CPF já existe!' });
-            }
-            const emailAtual = await clienteModel.selectByEmail(email);
-            if (emailAtual.length === 1) {
-                return res.status(409).json({ message: 'O email já existe!' });
-            }
-            const telefoneAtual = await clienteModel.selectByTelefone(telefone_cliente);
-            if (telefoneAtual.length === 1) {
-                return res.status(409).json({ message: 'O telefone já existe!' });
-            }
-
-            const respostaCliente = await clienteModel.insertCliente(nome, email, cpf);
-            const id_cliente = respostaCliente.insertId
-
-            // Busca o endereço pela API via CEP, de acordo com os parametros .
-            const resposta = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
-            const dados = await resposta.json();
-
-            const { logradouro, bairro, localidade, uf } = dados;
-
-            // Insere os dados na tabela telefones
-            await clienteModel.insertTelefone(telefone_cliente, id_cliente);
-
-
-            // Insere os dados na tabela endereços
-            await clienteModel.insertEndereco(
-                cep,
-                uf,
-                localidade,
-                logradouro,
-                bairro,
-                numero,
-                complemento,
-                id_cliente
-            );
-            // Verifica se ocorreu um erro na hora de inserir os dados dos clientes
-            if (id_cliente.insertId === 0) {
-                throw new Error("Ocorreu um erro ao incluir o cliente");
-            }
-
-            res.status(201).json({ message: 'Registro incluído com sucesso!' });
-
+          const resultado = await clienteModel.selectClientes();
+          // Verifica se a consulta possui clientes cadastrados, se não tiver ele retorna que não foi encontrado
+          if (resultado.length === 0) {
+            return res
+              .status(200)
+              .json({ message: "A consulta não retornou resultados" });
+          }
+          // Se tiver ele nos retorna
+          return res.status(200).json({ data: resultado });
         } catch (error) {
-            console.error(error);
-            res.status(500).json({ message: 'Ocorreu um erro no servidor', errorMessage: error.message });
+          console.error(error);
+          res.status(500).json({
+            message: "Ocorreu um erro no servidor",
+            errorMessage: error.message,
+          });
         }
-    },
-
+      },
+      /**
+       * Insere o registro dos clientes
+       * @async
+       * @function incluiRegistroCliente: cria o registro do cliente
+       * @param {Request} req Objeto da requisição HTTP
+       * @param {Response} res Objeto da resposta HTTP
+       * @returns
+       */
+      incluiRegistroCliente: async (req, res) => {
+        try {
+          const { nome, cpf, email, telefone_cliente, numero, complemento, cep } =
+            req.body;
+          // Verifica se os campos abaixo possui valor ou se esta de acordo com tipo especificado no banco como string, int ou até mesmo decimal
+          if (!nome || !cpf || !email || !telefone_cliente || !cep) {
+            return res
+              .status(400)
+              .json({ message: "Verifique os dados enviados e tente novamente" });
+          }
+    
+          // Verifica se o cep possui 8 dígitos
+          if (cep.length !== 8) {
+            return res.status(400)({ message: "O CEP deve conter 8 dígitos." });
+          }
+    
+          // Verifica se o cpf possui 11 dígitos
+          if (cpf.length !== 11) {
+            return res.status(400)({ message: "O CPF deve conter 11 dígitos." });
+          }
+          
+          // Verifica se os campos abaixo são números ou não
+          if (
+            isNaN(cpf) ||
+            isNaN(telefone_cliente) ||
+            isNaN(numero) ||
+            isNaN(cep)
+          ) {
+            return res
+              .status(400)
+              .json({ message: "Verifique os dados númericos" });
+          }
+    
+          // Verifica se o cpf já existe
+          const cpfAtual = await clienteModel.selectByCpf(cpf);
+          if (cpfAtual.length === 1) {
+            return res.status(409).json({ message: "O CPF já existe!" });
+          }
+    
+          // Verifica se o email já existe
+          const emailAtual = await clienteModel.selectByEmail(email);
+          if (emailAtual.length === 1) {
+            return res.status(409).json({ message: "O email já existe!" });
+          }
+          
+          // Verifica se o telefone já existe
+          const telefoneAtual = await clienteModel.selectByTelefone(
+            telefone_cliente
+          );
+          if (telefoneAtual.length === 1) {
+            return res.status(409).json({ message: "O telefone já existe!" });
+          }
+    
+          // Inserir os clientes na tabela
+          const respostaCliente = await clienteModel.insertCliente(
+            nome,
+            email,
+            cpf
+          );
+          const id_cliente = respostaCliente.insertId;
+    
+          // Busca o endereço pela API via CEP, de acordo com os parametros ele vai buscar na API.
+          const resposta = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+          const dados = await resposta.json();
+    
+          const { logradouro, bairro, localidade, uf } = dados;
+    
+          // Insere os dados na tabela telefones
+          await clienteModel.insertTelefone(telefone_cliente, id_cliente);
+    
+          // Insere os dados na tabela endereços
+          await clienteModel.insertEndereco(
+            cep,
+            uf,
+            localidade,
+            logradouro,
+            bairro,
+            numero,
+            complemento,
+            id_cliente
+          );
+    
+          // Verifica se ocorreu um erro na hora de inserir os dados dos clientes
+          if (id_cliente.insertId === 0) {
+            throw new Error("Ocorreu um erro ao incluir o cliente");
+          }
+    
+          // Se caso não tiver ele inclui o registro
+          res.status(201).json({ message: "Registro incluído com sucesso!" });
+        } catch (error) {
+          console.error(error);
+          res
+            .status(500)
+            .json({
+              message: "Ocorreu um erro no servidor",
+              errorMessage: error.message,
+            });
+        }
+      },
     /**
      * Altera os dados dos clientes
      * @async

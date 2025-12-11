@@ -65,10 +65,6 @@ const pedidoController = {
         !id_cliente || !tipo_entrega || !distancia || !peso_carga || !valor_base_km || !valor_base_kg || !data_pedido) {
         return res.status(400).json({ message: "Verifique os dados enviados e tente novamente" });
       }
-      if (tipo_entrega !== "urgente" || tipo_entrega !== "normal") {
-        return res.status(400).json({ message: "O tipo de entrega deverá ser: normal ou urgente" });
-      }
-
       // Se todos os campos forem preenchidos, irá incluir no banco de dados.
       const resultado = await pedidoModel.insertPedido(
         id_cliente, tipo_entrega, distancia, peso_carga, valor_base_km, valor_base_kg, data_pedido);
